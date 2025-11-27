@@ -1,96 +1,77 @@
+"""
+-----------------------------------------------------------------------
+Arquivo: src/game.py
+Data: 27/11/2025
+Versão: 1.0
+Autor: Renato Gritti
+Descrição:
+    Contém a classe principal Game, que gerencia o loop do jogo, 
+    estados (menu, jogando, game over), física, colisões e interface 
+    com o agente de Reinforcement Learning (método step).
+-----------------------------------------------------------------------
+"""
+
 import pygame
 import numpy as np
 import random
-from src.settings import *
+from src.config import *
 from src.sprites import Paddle, Ball, Brick
 
 class Game:
     """
-    Gerencia a lógica principal do jogo Brick Breaker, incluindo inicialização,
-    loops de jogo, gerenciamento de eventos, atualizações de estado e renderização.
+    Gerencia a lógica principal do jogo Brick Breaker.
     """
 
     def __init__(self):
         """
-        Inicializa o Pygame, configura a tela, carrega sons e define os estados iniciais do jogo.
+        Inicializa o motor do Pygame, a janela, o relógio e os elementos do jogo.
         """
         pygame.init()
-        pygame.mixer.init() # Inicializa o mixer para sons
+        
+        if ENABLE_SOUND:
+            pygame.mixer.init()
+            self.generate_bip_sounds()
+            
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-        pygame.display.set_caption("Brick Breaker")
+        pygame.display.set_caption(CAPTION)
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 36)
+        
         self.running = True
         self.game_over = False
-        self.game_won = False # Novo estado para vitória
-        self.level_complete = False # Novo estado para fase concluída
-        self.generate_bip_sounds() # Gera os sons de bip
+        self.game_won = False
+        self.level_complete = False
 
-        # Inicializa grupos de sprites e objetos aqui
+        # Grupos de Sprites
         self.all_sprites = pygame.sprite.Group()
         self.bricks = pygame.sprite.Group()
         self.balls = pygame.sprite.Group()
         self.paddle = Paddle()
-
+        
         self.all_sprites.add(self.paddle)
         
         self.reset_game()
 
     def generate_bip_sounds(self):
         """
-        Gera e carrega os sons de "bip" para diferentes eventos do jogo (colisões, perda de vida, etc.)
-        usando a biblioteca numpy para criar as ondas sonoras.
+        Gera sons procedurais se o som estiver habilitado.
+        (Atualmente desabilitado via config.py por padrão)
         """
-        # Frequências e durações para os bips
-        freq_brick = 440  # A4
-        freq_paddle = 660 # E5
-        freq_wall = 880   # A5
-        freq_lose_life = 220 # A3
-        freq_victory = 1320 # E6
-        freq_level_complete = 1000 # C6
-        duration = 0.05 # segundos
-
-        sample_rate = pygame.mixer.get_init()[0] # Obtém a taxa de amostragem do mixer
-
-        def create_bip(frequency, duration_sec):
-            """
-            Cria um som de bip com a frequência e duração especificadas.
-            Args:
-                frequency (int): A frequência do som em Hz.
-                duration_sec (float): A duração do som em segundos.
-            Returns:
-                pygame.mixer.Sound: O objeto Sound gerado.
-            """
-            num_samples = int(sample_rate * duration_sec)
-            arr = np.sin(2 * np.pi * frequency * np.arange(num_samples) / sample_rate).astype(np.float32)
-            # Reshape para 2D para mixer estéreo (mesmo que seja mono)
-            arr = np.array([arr, arr]).T # Para estéreo, duplica e transpõe
-            arr = np.ascontiguousarray(arr) # Garante que o array seja C-contiguous
-            sound = pygame.sndarray.make_sound(arr)
-            return sound
-
-        self.sound_brick_hit = create_bip(freq_brick, duration)
-        self.sound_paddle_hit = create_bip(freq_paddle, duration)
-        self.sound_wall_hit = create_bip(freq_wall, duration)
-        self.sound_lose_life = create_bip(freq_lose_life, duration * 2) # Um pouco mais longo
-        self.sound_victory = create_bip(freq_victory, duration * 3) # Mais longo para vitória
-        self.sound_level_complete = create_bip(freq_level_complete, duration * 2) # Som para fase concluída
+        pass
 
     def reset_game(self):
         """
-        Reinicia o jogo para o estado inicial, resetando pontuação, vidas, nível e recriando os elementos do jogo.
+        Reinicia o jogo completo (Score 0, Vidas 3, Nível 1).
         """
         self.game_over = False
         self.score = 0
         self.lives = 3
         self.level = 1
         
-        # Limpa os grupos existentes
         self.all_sprites.empty()
         self.bricks.empty()
         self.balls.empty()
 
-        # Recria a raquete e a bola inicial
         self.paddle = Paddle()
         self.ball = Ball()
         self.all_sprites.add(self.paddle, self.ball)
@@ -101,147 +82,235 @@ class Game:
 
     def reset_ball(self):
         """
-        Reinicia a posição e velocidade da bola, centralizando-a na raquete e ajustando a velocidade
-        com base no nível atual.
+        Reposiciona a bola na raquete com parâmetros aleatórios para evitar
+        repetição de cenários (importante para o treino de RL).
         """
-        # Remove todas as bolas existentes
         for ball in self.balls:
             ball.kill()
         self.balls.empty()
 
-        # Cria uma nova bola
         self.ball = Ball()
-
         self.balls.add(self.ball)
 
         self.ball_launched = True
         
-        # Randomize starting position on the paddle
-        random_offset = random.randint(-20, 20)
+        # Aleatoriedade na posição inicial (offset do centro da raquete)
+        # Limita para não sair da largura da raquete
+        max_offset = (PADDLE_WIDTH // 2) - BALL_RADIUS
+        random_offset = random.randint(-max_offset, max_offset)
+        
         self.ball.rect.centerx = self.paddle.rect.centerx + random_offset
         self.ball.rect.bottom = self.paddle.rect.top
         
-        speed_multiplier = 1 + (self.level - 1) * BALL_SPEED_INCREASE_PERCENTAGE
+        # Aumento de velocidade progressivo por nível
+        speed_multiplier = 1 + (self.level - 1) * BALL_SPEED_INCREASE
         
-        # Randomize initial direction (left or right)
+        # Direção aleatória (Esquerda ou Direita)
         direction_x = random.choice([-1, 1])
         
-        self.ball.speed_x = BALL_SPEED_X * speed_multiplier * direction_x
-        # Ensure ball launches upwards (BALL_SPEED_Y is negative for up)
-        self.ball.speed_y = BALL_SPEED_Y * speed_multiplier
+        # Magnitude da velocidade horizontal aleatória
+        random_speed_x = random.uniform(BALL_RANDOM_SPEED_MIN, BALL_RANDOM_SPEED_MAX)
+        
+        self.ball.speed_x = random_speed_x * speed_multiplier * direction_x
+        
+        # Garante que a bola suba
+        self.ball.speed_y = BALL_SPEED_Y_INITIAL * speed_multiplier
 
     def create_bricks(self):
         """
-        Cria os tijolos para o nível atual, incluindo tijolos especiais a partir do nível 2.
+        Gera a matriz de tijolos para o nível atual.
         """
         self.bricks.empty()
+        # Remove tijolos antigos do grupo geral, mas mantém paddle e ball
         for sprite in self.all_sprites:
             if isinstance(sprite, Brick):
                 sprite.kill()
 
-        colors = [RED, GREEN, BLUE]
-        for i in range(5):
-            for j in range(10):
+        colors = BRICK_COLORS
+        rows = 5
+        cols = 10
+        
+        for i in range(rows):
+            for j in range(cols):
                 is_special = False
-                if self.level >= 2 and random.random() < 0.1: # 10% de chance de ser especial a partir do nível 2
+                # Chance de tijolo especial a partir do nível 2
+                if self.level >= 2 and random.random() < SPECIAL_BRICK_CHANCE:
                     is_special = True
-                brick = Brick(j * (60 + 10) + 35, i * (20 + 10) + 50, colors[i % len(colors)], is_special=is_special)
+                
+                x = j * (BRICK_WIDTH + BRICK_GAP) + BRICK_OFFSET_LEFT
+                y = i * (BRICK_HEIGHT + BRICK_GAP) + BRICK_OFFSET_TOP
+                color = colors[i % len(colors)]
+                
+                brick = Brick(x, y, color, is_special=is_special)
                 self.all_sprites.add(brick)
                 self.bricks.add(brick)
 
     def run(self):
         """
-        Inicia o loop principal do jogo, que inclui a splash screen, o loop de eventos,
-        atualização do estado do jogo e renderização.
+        Loop principal para execução humana (main.py).
         """
-        self.reset_game() # Start with a clean game state immediately
-
-        # Loop principal do jogo
+        self.reset_game()
         while self.running:
-            self.clock.tick(FPS)
+            self.clock.tick(FPS_HUMAN)
             self.events()
             self.update()
             self.draw()
         pygame.quit()
 
+    def step(self, action=None, fps=0):
+        """
+        Executa um único passo (frame) da simulação para o Agente de RL.
+
+        Args:
+            action (int, optional): Ação escolhida pelo agente.
+            fps (int, optional): Limite de quadros. 0 para treino (máx speed), 
+                                 60 para demo (tempo real).
+
+        Returns:
+            tuple: (estado, recompensa, done)
+        """
+        self.clock.tick(fps)
+        self.events() # Processa a fila de eventos (ex: botão fechar)
+        
+        # Salva estado anterior para calcular delta de pontuação/vidas
+        prev_score = self.score
+        prev_lives = self.lives
+        
+        self.current_hit_paddle = False # Flag resetada a cada frame
+        
+        self.update(action)
+        self.draw() # Desenha (necessário para o humano ver o que acontece na demo/treino)
+        
+        # Cálculo da Recompensa (Reward Function)
+        reward = 0
+        
+        # 1. Reward Shaping: Incentivar seguir a bola
+        # Calcula distância horizontal normalizada entre centros
+        dist_x = abs(self.paddle.rect.centerx - self.ball.rect.centerx)
+        max_dist = SCREEN_WIDTH
+        norm_dist = dist_x / max_dist # 0 (perto) a 1 (longe)
+        
+        # Só recompensa se a bola estiver descendo (vindo em direção à raquete)
+        if self.ball.speed_y > 0: 
+            # Quanto menor a distância, maior a recompensa
+            reward += REWARD_TRACKING_FACTOR * (1.0 - norm_dist)
+
+        # 2. Recompensa por Pontuar (Quebrar Tijolo)
+        if self.score > prev_score:
+            reward += REWARD_HIT_BRICK
+            
+        # 3. Recompensa por Rebater na Raquete (Sobrevivência Ativa)
+        if self.current_hit_paddle:
+            reward += REWARD_HIT_PADDLE
+            
+        # 4. Penalidade por Perder Vida
+        if self.lives < prev_lives:
+            reward += REWARD_LOSE_LIFE # Valor negativo no config
+
+        # Verifica condição de término
+        done = self.lives == 0 or not self.running
+        
+        return self.get_state(), reward, done
+
+    def get_state(self):
+        """
+        Constrói o vetor de observação do ambiente.
+        
+        Returns:
+            np.array: [Paddle X, Ball X, Ball Y, Ball Vel X, Ball Vel Y] normalizados.
+        """
+        # Normalização simples (0 a 1 ou -1 a 1)
+        p_x = self.paddle.rect.centerx / SCREEN_WIDTH
+        b_x = self.ball.rect.centerx / SCREEN_WIDTH
+        b_y = self.ball.rect.centery / SCREEN_HEIGHT
+        
+        # Velocidades normalizadas por um máximo estimado
+        max_speed = 20.0
+        b_vx = self.ball.speed_x / max_speed
+        b_vy = self.ball.speed_y / max_speed
+        
+        return np.array([p_x, b_x, b_y, b_vx, b_vy], dtype=np.float32)
+
     def events(self):
         """
-        Processa os eventos do Pygame, como fechar a janela ou pressionar 'q' para sair.
+        Trata eventos de entrada do sistema (teclado, fechar janela).
         """
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_q:
+                if event.key == pygame.K_q: # Tecla Q para sair
                     self.running = False
 
-    def update(self):
+    def update(self, action=None):
         """
-        Atualiza o estado de todos os elementos do jogo, como a posição da raquete e da bola,
-        e verifica colisões.
+        Atualiza a lógica de jogo (movimento, colisão).
         """
         if self.game_over:
             return
 
-        self.paddle.update()
+        self.paddle.update(action)
 
-        # Ball is always launched
         for ball in self.balls:
             ball.update()
             self.check_collisions(ball)
 
     def check_collisions(self, ball):
         """
-        Verifica e lida com todas as colisões da bola com as paredes, raquete e tijolos.
-        Args:
-            ball (Ball): O objeto Ball a ser verificado para colisões.
+        Gerencia física de colisão da bola com paredes, raquete e tijolos.
         """
+        # Paredes Laterais
         if ball.rect.left <= 0 or ball.rect.right >= SCREEN_WIDTH:
             ball.speed_x *= -1
-            self.sound_wall_hit.play()
+            # Som desabilitado
+            
+        # Teto
         if ball.rect.top <= 0:
             ball.speed_y *= -1
-            self.sound_wall_hit.play()
+            # Som desabilitado
 
+        # Raquete
         if pygame.sprite.collide_rect(ball, self.paddle):
             ball.speed_y *= -1
+            # Ajusta a bola para cima da raquete para evitar "grudar"
             ball.rect.bottom = self.paddle.rect.top
-            self.sound_paddle_hit.play()
+            self.current_hit_paddle = True 
 
+        # Tijolos
         hits = pygame.sprite.spritecollide(ball, self.bricks, True)
         if hits:
-            self.score += 10
+            self.score += 10 # Pontuação fixa por tijolo (pode ir para config se desejar)
             ball.speed_y *= -1
-            self.sound_brick_hit.play()
-            # No special brick logic - single ball only
-
+            
+        # Nível Concluído
         if not self.bricks:
             self.level += 1
             self.create_bricks()
             self.reset_ball()
 
-        # Se a bola atinge a parte inferior da tela
+        # Chão (Perde Vida)
         if ball.rect.top > SCREEN_HEIGHT:
-            ball.kill() # Remove a bola que caiu
+            ball.kill()
             self.lives -= 1
-            self.sound_lose_life.play()
             if self.lives > 0:
                 self.reset_ball()
             else:
                 self.lives = 0
-                self.reset_game() # Reset the entire game if lives run out
+                self.reset_game()
 
     def draw(self):
         """
-        Desenha todos os elementos do jogo na tela, incluindo sprites, HUD e telas de estado do jogo.
+        Renderiza o estado atual na tela.
         """
         self.screen.fill(BLACK)
         self.all_sprites.draw(self.screen)
-        self.balls.draw(self.screen) # Desenha todas as bolas
+        self.balls.draw(self.screen)
         
+        # HUD (Head-Up Display)
         score_text = self.font.render(f"Score: {self.score}", True, WHITE)
         lives_text = self.font.render(f"Lives: {self.lives}", True, WHITE)
         level_text = self.font.render(f"Level: {self.level}", True, WHITE)
+        
         self.screen.blit(score_text, (10, 10))
         self.screen.blit(lives_text, (SCREEN_WIDTH - 120, 10))
         self.screen.blit(level_text, (SCREEN_WIDTH // 2 - 50, 10))
@@ -253,16 +322,14 @@ class Game:
 
     def draw_game_over(self):
         """
-        Desenha a tela de "Game Over" com a pontuação final.
+        Desenha a tela de fim de jogo.
         """
         game_over_font = pygame.font.Font(None, 72)
         
-        game_over_text = game_over_font.render("GAME OVER", True, RED)
-        score_text = self.font.render(f"Final Score: {self.score}", True, WHITE)
+        text_surface = game_over_font.render("GAME OVER", True, RED)
+        score_surface = self.font.render(f"Final Score: {self.score}", True, WHITE)
         
-        self.screen.blit(game_over_text, (SCREEN_WIDTH // 2 - game_over_text.get_width() // 2, SCREEN_HEIGHT // 2 - 50))
-        self.screen.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, SCREEN_HEIGHT // 2 + 50))
-
-
-
-
+        cx, cy = SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2
+        
+        self.screen.blit(text_surface, (cx - text_surface.get_width() // 2, cy - 50))
+        self.screen.blit(score_surface, (cx - score_surface.get_width() // 2, cy + 50))
