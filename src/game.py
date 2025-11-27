@@ -115,11 +115,20 @@ class Game:
         self.balls.add(self.ball)
 
         self.ball_launched = True
-        self.ball.rect.centerx = self.paddle.rect.centerx
+        
+        # Randomize starting position on the paddle
+        random_offset = random.randint(-20, 20)
+        self.ball.rect.centerx = self.paddle.rect.centerx + random_offset
         self.ball.rect.bottom = self.paddle.rect.top
+        
         speed_multiplier = 1 + (self.level - 1) * BALL_SPEED_INCREASE_PERCENTAGE
-        self.ball.speed_x = BALL_SPEED_X * speed_multiplier
-        self.ball.speed_y = -(BALL_SPEED_Y * speed_multiplier)
+        
+        # Randomize initial direction (left or right)
+        direction_x = random.choice([-1, 1])
+        
+        self.ball.speed_x = BALL_SPEED_X * speed_multiplier * direction_x
+        # Ensure ball launches upwards (BALL_SPEED_Y is negative for up)
+        self.ball.speed_y = BALL_SPEED_Y * speed_multiplier
 
     def create_bricks(self):
         """
