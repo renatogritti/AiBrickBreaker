@@ -38,10 +38,11 @@ class BrickBreakerEnv(gym.Env):
         # Espaço de Ação Discreto: 0=Ficar, 1=Esquerda, 2=Direita
         self.action_space = spaces.Discrete(3)
         
-        # Espaço de Observação: [Paddle X, Ball X, Ball Y, Ball Speed X, Ball Speed Y]
+        # Espaço de Observação: [Paddle X, Ball X, Ball Y, Ball Speed X, Ball Speed Y, Rel X, Paddle Speed]
         # Valores normalizados aproximados
-        low = np.array([0.0, 0.0, 0.0, -5.0, -5.0], dtype=np.float32)
-        high = np.array([1.0, 1.0, 1.2, 5.0, 5.0], dtype=np.float32)
+        # PaddleX, BallX, BallY, BallVX, BallVY, RelX, PaddleVX
+        low = np.array([0.0, 0.0, 0.0, -5.0, -5.0, -2.0, -2.0], dtype=np.float32)
+        high = np.array([1.0, 1.0, 1.2, 5.0, 5.0, 2.0, 2.0], dtype=np.float32)
         
         self.observation_space = spaces.Box(low=low, high=high, dtype=np.float32)
 

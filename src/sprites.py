@@ -29,7 +29,9 @@ class Paddle(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.centerx = SCREEN_WIDTH // 2
         self.rect.bottom = SCREEN_HEIGHT - PADDLE_START_Y_OFFSET
+        self.rect.bottom = SCREEN_HEIGHT - PADDLE_START_Y_OFFSET
         self.speed = PADDLE_SPEED
+        self.current_vel_x = 0
 
     def update(self, action=None):
         """

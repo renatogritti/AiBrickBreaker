@@ -217,7 +217,7 @@ class Game:
         Constrói o vetor de observação do ambiente.
         
         Returns:
-            np.array: [Paddle X, Ball X, Ball Y, Ball Vel X, Ball Vel Y] normalizados.
+            np.array: [Paddle X, Ball X, Ball Y, Ball Vel X, Ball Vel Y, Rel X, Paddle Vel X] normalizados.
         """
         # Normalização simples (0 a 1 ou -1 a 1)
         p_x = self.paddle.rect.centerx / SCREEN_WIDTH
@@ -229,7 +229,18 @@ class Game:
         b_vx = self.ball.speed_x / max_speed
         b_vy = self.ball.speed_y / max_speed
         
-        return np.array([p_x, b_x, b_y, b_vx, b_vy], dtype=np.float32)
+        # Features Adicionais para Física Avançada
+        # 1. Distância relativa X (fundamental para mirar o ângulo)
+        # Normalizado por largura/2 da raquete (intervalo aprox -1 a 1 quando colide, mas pode ser maior longe)
+        rel_x = (self.paddle.rect.centerx - self.ball.rect.centerx) / SCREEN_WIDTH # Normalizado pela tela para manter escala
+        
+        # 2. Velocidade da Raquete (fundamental para efeito de momento)
+        # Normalizado pela velocidade máxima da raquete
+        p_vx = 0.0
+        if hasattr(self.paddle, 'current_vel_x'):
+             p_vx = self.paddle.current_vel_x / PADDLE_SPEED
+        
+        return np.array([p_x, b_x, b_y, b_vx, b_vy, rel_x, p_vx], dtype=np.float32)
 
     def events(self):
         """

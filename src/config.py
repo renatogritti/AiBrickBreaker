@@ -76,16 +76,26 @@ SPECIAL_BRICK_CHANCE = 0.1 # 10% de chance a partir do nível 2
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 LOGS_DIR = os.path.join(BASE_DIR, "logs")
-MODEL_NAME = "ppo_brickbreaker"
+MODEL_NAME = "dqn_brickbreaker"
 MODEL_PATH = os.path.join(MODELS_DIR, MODEL_NAME)
 
 # Hiperparâmetros de Treino
-TOTAL_TIMESTEPS = 2_000_000
-LEARNING_RATE = 0.0003
-ENTROPY_COEF = 0.01
+# Hiperparâmetros de Treino (DQN Config)
+TOTAL_TIMESTEPS = 3_000_000
+LEARNING_RATE = 1e-4
+BUFFER_SIZE = 100_000
+LEARNING_STARTS = 1000
+BATCH_SIZE = 32
+TAU = 1.0 
 GAMMA = 0.99
-BATCH_SIZE = 64
-NET_ARCH = dict(pi=[256, 256], vf=[256, 256]) # Arquitetura da rede (Actor-Critic)
+TRAIN_FREQ = 4
+GRADIENT_STEPS = 1
+TARGET_UPDATE_INTERVAL = 1000
+EXPLORATION_FRACTION = 0.1
+EXPLORATION_INITIAL_EPS = 1.0
+EXPLORATION_FINAL_EPS = 0.05
+
+NET_ARCH = [256, 256] # Para DQN é apenas uma lista de hidden layers
 
 # Sistema de Recompensa (Reward Shaping)
 REWARD_HIT_BRICK = 10       # Ganho ao quebrar tijolo
