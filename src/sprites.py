@@ -39,20 +39,27 @@ class Paddle(pygame.sprite.Sprite):
             action (int, optional): Ação do agente (0=Ficar, 1=Esquerda, 2=Direita).
                                     Se None, usa entrada do teclado (Humano).
         """
+        dx = 0
         if action is None:
             # Controle por Teclado (Humano)
             keys = pygame.key.get_pressed()
             if keys[pygame.K_LEFT]:
-                self.rect.x -= self.speed
+                dx = -self.speed
             if keys[pygame.K_RIGHT]:
-                self.rect.x += self.speed
+                dx = self.speed
         else:
             # Controle por IA
             if action == 1: # Esquerda
-                self.rect.x -= self.speed
+                dx = -self.speed
             elif action == 2: # Direita
-                self.rect.x += self.speed
+                dx = self.speed
             # action == 0 faz nada (Ficar parado)
+
+        self.rect.x += dx
+        
+        # Armazena velocidade atual para física da bola
+        self.current_vel_x = dx
+
 
         # Mantém a raquete dentro dos limites da tela
         if self.rect.left < 0:

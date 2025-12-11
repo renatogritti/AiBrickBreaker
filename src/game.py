@@ -271,7 +271,41 @@ class Game:
 
         # Raquete
         if pygame.sprite.collide_rect(ball, self.paddle):
+            # 1. Deflexão baseada no ponto de impacto (Angle Deflection)
+            # Calcula onde a bola bateu na raquete (-1 esquerda, 0 centro, 1 direita)
+            relative_intersect_x = (self.paddle.rect.centerx - ball.rect.centerx)
+            normalized_relative_intersection_x = relative_intersect_x / (PADDLE_WIDTH / 2)
+            
+            # Inverte direção Y (rebate)
             ball.speed_y *= -1
+            
+            # Muda a direção X baseada no ponto de impacto (efeito de "curva")
+            # Quanto mais na ponta, mais horizontal a bola sai.
+            # MAX_BOUNCE_ANGLE poderia ser aprox 75 graus (em radianos) ou fator linear
+            bounce_factor = 5.0 # Fator de força lateral
+            ball.speed_x = -normalized_relative_intersection_x * bounce_factor
+            
+            # 2. Transferência de Momento (Paddle Momentum)
+            # Se a raquete estiver se movendo, adiciona velocidade à bola
+            if hasattr(self.paddle, 'current_vel_x'):
+                ball.speed_x += self.paddle.current_vel_x * 0.3 # 30% da velocidade da raquete
+                
+            # 3. Aceleração Dinâmica (Speed Variation)
+            # Aumenta levemente a velocidade total a cada batida para tensão
+            current_speed = np.sqrt(ball.speed_x**2 + ball.speed_y**2)
+            new_speed = min(current_speed * 1.05, 12.0) # Aumenta 5%, max 12.0
+            
+            # Normaliza vetor e aplica nova velocidade
+            speed_ratio = new_speed / current_speed
+            ball.speed_x *= speed_ratio
+            ball.speed_y *= speed_ratio
+            
+            # Garante componente Y mínima para a bola não ficar horizontal demais
+            min_speed_y = 3.0
+            if abs(ball.speed_y) < min_speed_y:
+                 # Dá um "kick" vertical mantendo o sinal
+                ball.speed_y = -min_speed_y if ball.speed_y < 0 else min_speed_y
+
             # Ajusta a bola para cima da raquete para evitar "grudar"
             ball.rect.bottom = self.paddle.rect.top
             self.current_hit_paddle = True 
