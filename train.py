@@ -74,6 +74,10 @@ def train():
         os.remove(f"{MODEL_PATH}.zip")
 
     print("Criando novo modelo DQN com arquitetura personalizada...")
+    # NOTA: Este é DQN Vanilla (Stable-Baselines3 não suporta Dueling DQN nativamente)
+    # Para upgrade futuro, considerar QRDQN do sb3-contrib (Distributional RL)
+    # Instalação: pip install sb3-contrib
+    # Uso: from sb3_contrib import QRDQN
     model = DQN(
         "MlpPolicy", 
         env, 

@@ -91,9 +91,9 @@ GAMMA = 0.99
 TRAIN_FREQ = 4
 GRADIENT_STEPS = 1
 TARGET_UPDATE_INTERVAL = 1000
-EXPLORATION_FRACTION = 0.1
+EXPLORATION_FRACTION = 0.3       # 30% dos timesteps (900k) - aumentado de 10% para explorar mais
 EXPLORATION_INITIAL_EPS = 1.0
-EXPLORATION_FINAL_EPS = 0.05
+EXPLORATION_FINAL_EPS = 0.02     # Reduzido de 0.05 para 0.02 - mais greedy no final
 
 NET_ARCH = [256, 256] # Para DQN é apenas uma lista de hidden layers
 

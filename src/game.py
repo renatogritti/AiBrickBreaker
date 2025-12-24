@@ -217,7 +217,8 @@ class Game:
         Constrói o vetor de observação do ambiente.
         
         Returns:
-            np.array: [Paddle X, Ball X, Ball Y, Ball Vel X, Ball Vel Y, Rel X, Paddle Vel X] normalizados.
+            np.array: [Paddle X, Ball X, Ball Y, Ball Vel X, Ball Vel Y, Rel X, Paddle Vel X, 
+                      Future Ball X, Distance to Ball, Is Approaching] normalizados.
         """
         # Normalização simples (0 a 1 ou -1 a 1)
         p_x = self.paddle.rect.centerx / SCREEN_WIDTH
@@ -229,18 +230,36 @@ class Game:
         b_vx = self.ball.speed_x / max_speed
         b_vy = self.ball.speed_y / max_speed
         
-        # Features Adicionais para Física Avançada
-        # 1. Distância relativa X (fundamental para mirar o ângulo)
-        # Normalizado por largura/2 da raquete (intervalo aprox -1 a 1 quando colide, mas pode ser maior longe)
-        rel_x = (self.paddle.rect.centerx - self.ball.rect.centerx) / SCREEN_WIDTH # Normalizado pela tela para manter escala
+        # Feature 1: Distância relativa X (CORRIGIDO: ball - paddle para eliminar viés)
+        # Positivo = bola à direita, Negativo = bola à esquerda
+        rel_x = (self.ball.rect.centerx - self.paddle.rect.centerx) / SCREEN_WIDTH
         
-        # 2. Velocidade da Raquete (fundamental para efeito de momento)
-        # Normalizado pela velocidade máxima da raquete
+        # Feature 2: Velocidade da Raquete (fundamental para efeito de momento)
         p_vx = 0.0
         if hasattr(self.paddle, 'current_vel_x'):
              p_vx = self.paddle.current_vel_x / PADDLE_SPEED
         
-        return np.array([p_x, b_x, b_y, b_vx, b_vy, rel_x, p_vx], dtype=np.float32)
+        # Feature 3: NOVA - Posição X futura estimada da bola (onde vai bater no Y do paddle)
+        # Predição crítica para interceptação eficiente
+        if abs(self.ball.speed_y) > 0.1:
+            # Tempo até a bola chegar na altura do paddle
+            t_to_paddle = (self.paddle.rect.top - self.ball.rect.centery) / self.ball.speed_y
+            # Posição X estimada (com bounds para não extrapolar muito)
+            future_ball_x_raw = self.ball.rect.centerx + self.ball.speed_x * t_to_paddle
+            # Clamp para largura da tela (bola vai ricochetear, mas primeira aproximação)
+            future_ball_x_raw = max(0, min(SCREEN_WIDTH, future_ball_x_raw))
+            future_ball_x = future_ball_x_raw / SCREEN_WIDTH
+        else:
+            # Se bola está quase horizontal, usa posição atual
+            future_ball_x = b_x
+        
+        # Feature 4: NOVA - Distância absoluta até a bola (magnitude)
+        distance_to_ball = abs(self.paddle.rect.centerx - self.ball.rect.centerx) / SCREEN_WIDTH
+        
+        # Feature 5: NOVA - Indicador se bola está se aproximando (descendo)
+        is_approaching = 1.0 if self.ball.speed_y > 0 else 0.0
+        
+        return np.array([p_x, b_x, b_y, b_vx, b_vy, rel_x, p_vx, future_ball_x, distance_to_ball, is_approaching], dtype=np.float32)
 
     def events(self):
         """
